@@ -32,23 +32,40 @@ const Index = () => {
     toast.success("Signed out successfully");
   };
 
-  const handleUploadComplete = async (videoUrl: string, videoFile: File) => {
+  const handleUploadComplete = async (videoUrl: string, videoFile?: File, isUrl?: boolean) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // Extract title from URL or file name
+      let title = "Untitled Video";
+      if (videoFile) {
+        title = videoFile.name.replace(/\.[^/.]+$/, "");
+      } else if (isUrl) {
+        // Try to extract a readable title from URL
+        try {
+          const url = new URL(videoUrl);
+          const pathname = url.pathname;
+          const lastSegment = pathname.split('/').filter(Boolean).pop() || "";
+          title = lastSegment || url.hostname;
+        } catch {
+          title = "Video from URL";
+        }
+      }
 
       // Create a placeholder clip entry
       const { error } = await supabase.from('clips').insert({
         user_id: user.id,
         original_video_url: videoUrl,
         clip_url: videoUrl, // For now, using the same URL
-        title: videoFile.name.replace(/\.[^/.]+$/, ""),
+        title: title,
         status: 'processing',
+        caption: isUrl ? `Imported from ${new URL(videoUrl).hostname}` : undefined,
       });
 
       if (error) throw error;
 
-      toast.success("Video uploaded! Processing will begin shortly.");
+      toast.success(isUrl ? "Video URL added! Processing will begin shortly." : "Video uploaded! Processing will begin shortly.");
     } catch (error: any) {
       toast.error(error.message);
     }
